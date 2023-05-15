@@ -284,3 +284,24 @@ func getFilterItemTypeText() []string {
 		"less than",
 	}
 }
+
+func getFilterItemTypeByString(val string) FilterItemType {
+	switch val {
+	case "equal":
+		return FilterItemTypeEqual
+	case "not equal":
+		return FilterItemTypeNotEqual
+	case "contain":
+		return FilterItemTypeContain
+	case "not contain":
+		return FilterItemTypeNotContain
+	case "regexp":
+		return FilterItemTypeRegexp
+	case "greater than":
+		return FilterItemTypeGreatThan
+	case "less than":
+		return FilterItemTypeLessThan
+	default:
+		return FilterItemTypeEqual
+	}
+}

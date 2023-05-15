@@ -1,25 +1,23 @@
 package components
 
 import (
-	"fmt"
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 	"log"
-	"strconv"
 	"strings"
-	"time"
 )
 
 type Filter struct {
 	widget.BaseWidget
-	items          []*FilterItem
-	onSubmit       func(text string)
-	itemsContainer *fyne.Container
-	window         fyne.Window
-	counter        int
+	items           []*FilterItem
+	onSubmit        func(text string)
+	itemsContainer  *fyne.Container
+	window          fyne.Window
+	dialog          *FilterDialog
+	itemsController *fyne.Container
+	checkboxAll     *widget.Check
 }
 
 func NewFilter(w fyne.Window, onSubmit func(text string), items ...*FilterItem) *Filter {
@@ -28,6 +26,7 @@ func NewFilter(w fyne.Window, onSubmit func(text string), items ...*FilterItem) 
 		items:    items,
 		window:   w,
 	}
+	f.makeFilterDialog()
 	f.ExtendBaseWidget(f)
 
 	return f
@@ -41,23 +40,21 @@ func (comp *Filter) CreateRenderer() fyne.WidgetRenderer {
 	searchInput.ActionItem = widget.NewIcon(theme.SearchIcon())
 	searchInput.TextStyle.Bold = true
 	searchInput.OnSubmitted = comp.onSubmit
-	dialogWindow := comp.getDialogWindow()
 
 	toolBar := widget.NewToolbar(
 		widget.NewToolbarAction(
 			theme.ContentAddIcon(),
 			func() {
-				dialogWindow.Show()
+				comp.dialog.Show()
 			},
 		),
 		widget.NewToolbarSeparator(),
 		widget.NewToolbarAction(theme.MediaReplayIcon(), func() {
-			log.Print("Reset")
-			comp.DeactivateFilters()
+			//TODO: history
 		}),
 	)
 
-	comp.itemsContainer = container.NewVBox()
+	comp.makeFilterItemsContainer()
 
 	content := container.NewBorder(
 		nil,
@@ -81,8 +78,30 @@ func (comp *Filter) AddItem(item *FilterItem) {
 
 	comp.itemsContainer.Add(item)
 	comp.Refresh()
+}
 
-	fmt.Printf("Add item: pos: %d len: %d \n", item.position, len(comp.items))
+func (comp *Filter) AddFilter(filterType FilterItemType, name string, value string) {
+	item, err := NewFilterItem(
+		filterType,
+		name,
+		value,
+		comp.RemoveItem,
+		func(position int) {
+			log.Print("On active")
+
+		},
+		func(position int) {
+			log.Print("On deactive")
+		},
+	)
+	if err != nil {
+		log.Print("Error: " + err.Error())
+
+		return
+	}
+
+	comp.itemsController.Show()
+	comp.AddItem(item)
 }
 
 func (comp *Filter) RemoveItem(position int) {
@@ -95,12 +114,35 @@ func (comp *Filter) RemoveItem(position int) {
 		comp.items[i].position = i
 	}
 
+	if len(comp.items) == 0 {
+		comp.checkboxAll.Checked = false
+		comp.checkboxAll.Refresh()
+		comp.itemsController.Hide()
+	}
+
 	comp.Refresh()
+}
+
+func (comp *Filter) RemoveSelected() {
+	for i, item := range comp.items {
+		if item.checkbox.Checked {
+			comp.RemoveItem(i)
+		}
+	}
+
+	comp.checkboxAll.Checked = false
+	comp.checkboxAll.Refresh()
 }
 
 func (comp *Filter) DeactivateFilters() {
 	for _, item := range comp.items {
 		item.Deactivate()
+	}
+}
+
+func (comp *Filter) ActivateFilters() {
+	for _, item := range comp.items {
+		item.Activate()
 	}
 }
 
@@ -132,60 +174,27 @@ func (comp *Filter) IsEqual(key string, value any) bool {
 	return true
 }
 
-func (comp *Filter) AddFilter(add bool) {
-	if !add {
-		return
-	}
-
-	item, err := NewFilterItem(
-		FilterItemTypeLessThan,
-		"operation_id_"+strconv.Itoa(comp.counter),
-		time.Now().Format("15:04:05.000000"),
-		comp.RemoveItem,
-		func(position int) {
-			log.Print("On active")
-
-		},
-		func(position int) {
-			log.Print("On deactive")
-		},
-	)
-	if err != nil {
-		log.Print("Error: " + err.Error())
-
-		return
-	}
-
-	comp.counter++
-
-	comp.AddItem(item)
+func (comp *Filter) makeFilterDialog() {
+	comp.dialog = NewFilterDialog(comp.window, comp.AddFilter)
 }
 
-func (comp *Filter) getDialogWindow() dialog.Dialog {
-	name := &widget.FormItem{
-		Text:     "Field Name",
-		Widget:   widget.NewEntry(),
-		HintText: "Filed for search by filter",
-	}
+func (comp *Filter) makeFilterItemsContainer() {
+	comp.checkboxAll = widget.NewCheck("All", func(b bool) {
+		if !b {
+			comp.DeactivateFilters()
 
-	filterType := &widget.FormItem{
-		Text:     "Filter type",
-		Widget:   widget.NewSelect(getFilterItemTypeText(), func(s string) {}),
-		HintText: "Type of filter to search by rules",
-	}
+			return
+		}
 
-	value := &widget.FormItem{
-		Text:     "Default value",
-		Widget:   widget.NewEntry(),
-		HintText: "Start value for filter",
-	}
+		comp.ActivateFilters()
+	})
 
-	return dialog.NewForm(
-		"Add filter",
-		"Add",
-		"Cancel",
-		[]*widget.FormItem{name, filterType, value},
-		comp.AddFilter,
-		comp.window,
-	)
+	button := widget.NewButton("delete", func() {
+		comp.RemoveSelected()
+	})
+
+	comp.itemsController = container.NewHBox(comp.checkboxAll, widget.NewSeparator(), button)
+	comp.itemsController.Hide()
+
+	comp.itemsContainer = container.NewVBox(comp.itemsController, widget.NewSeparator())
 }
