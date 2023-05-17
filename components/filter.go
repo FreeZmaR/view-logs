@@ -124,9 +124,11 @@ func (comp *Filter) RemoveItem(position int) {
 }
 
 func (comp *Filter) RemoveSelected() {
-	for i, item := range comp.items {
+	shift := 0
+	for position, item := range comp.items {
 		if item.checkbox.Checked {
-			comp.RemoveItem(i)
+			comp.RemoveItem(position - shift)
+			shift++
 		}
 	}
 
