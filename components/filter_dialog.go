@@ -5,6 +5,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 	"github.com/FreeZmaR/view-logs/components/dialogs"
 	"github.com/FreeZmaR/view-logs/components/forms"
+	"github.com/FreeZmaR/view-logs/core/logger"
 )
 
 type FilterDialog struct {
@@ -16,7 +17,7 @@ type FilterDialog struct {
 	onSubmit   FilterDialogSubmit
 }
 
-type FilterDialogSubmit func(filterType FilterItemType, name string, value string)
+type FilterDialogSubmit func(filterType logger.CompareType, name string, value string)
 
 func NewFilterDialog(window fyne.Window, onSubmit FilterDialogSubmit) *FilterDialog {
 	filterDialog := &FilterDialog{window: window, onSubmit: onSubmit}
@@ -25,7 +26,7 @@ func NewFilterDialog(window fyne.Window, onSubmit FilterDialogSubmit) *FilterDia
 }
 
 func (comp *FilterDialog) Submit() {
-	comp.onSubmit(getFilterItemTypeByString(comp.filterType.Selected), comp.name.Text, comp.value.Text)
+	comp.onSubmit(logger.GetCompareTypeByString(comp.filterType.Selected), comp.name.Text, comp.value.Text)
 	comp.Reset()
 }
 
@@ -62,7 +63,7 @@ func (comp *FilterDialog) make() *FilterDialog {
 func (comp *FilterDialog) makeContent() []*forms.FormItem {
 	comp.name = widget.NewEntry()
 	comp.value = widget.NewEntry()
-	comp.filterType = widget.NewSelect(getFilterItemTypeText(), func(s string) {})
+	comp.filterType = widget.NewSelect(logger.GetCompareTypeText(), func(s string) {})
 
 	return []*forms.FormItem{
 		{

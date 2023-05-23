@@ -5,6 +5,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/FreeZmaR/view-logs/core/logger"
 	"log"
 	"strings"
 )
@@ -80,7 +81,7 @@ func (comp *Filter) AddItem(item *FilterItem) {
 	comp.Refresh()
 }
 
-func (comp *Filter) AddFilter(filterType FilterItemType, name string, value string) {
+func (comp *Filter) AddFilter(filterType logger.CompareType, name string, value string) {
 	item, err := NewFilterItem(
 		filterType,
 		name,

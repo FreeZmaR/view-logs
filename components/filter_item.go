@@ -7,27 +7,16 @@ import (
 	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
+	"github.com/FreeZmaR/view-logs/core/logger"
 	"image/color"
 	"regexp"
 	"strconv"
 	"strings"
 )
 
-const (
-	FilterItemTypeEqual FilterItemType = iota + 1
-	FilterItemTypeNotEqual
-	FilterItemTypeContain
-	FilterItemTypeNotContain
-	FilterItemTypeRegexp
-	FilterItemTypeGreatThan
-	FilterItemTypeLessThan
-)
-
-type FilterItemType int
-
 type FilterItem struct {
 	widget.BaseWidget
-	itemType     FilterItemType
+	compareType  logger.CompareType
 	key          string
 	position     int
 	value        any
@@ -40,7 +29,7 @@ type FilterItem struct {
 }
 
 func NewFilterItem(
-	itemType FilterItemType,
+	compareType logger.CompareType,
 	key string,
 	value any,
 	onDelete func(position int),
@@ -48,7 +37,7 @@ func NewFilterItem(
 	onDeactivate func(position int),
 ) (*FilterItem, error) {
 	item := &FilterItem{
-		itemType:     itemType,
+		compareType:  compareType,
 		key:          key,
 		value:        value,
 		isActive:     false,
@@ -58,7 +47,7 @@ func NewFilterItem(
 	}
 	item.ExtendBaseWidget(item)
 
-	if itemType == FilterItemTypeRegexp {
+	if compareType == logger.CompareTypeRegexp {
 		v, ok := value.(string)
 		if !ok {
 			return nil, errors.New("regexp type: value must be string")
@@ -173,12 +162,12 @@ func (comp *FilterItem) IsActive() bool {
 }
 
 func (comp *FilterItem) IsEqual(val any) bool {
-	switch comp.itemType {
-	case FilterItemTypeEqual:
+	switch comp.compareType {
+	case logger.CompareTypeEqual:
 		return comp.value == val
-	case FilterItemTypeNotEqual:
+	case logger.CompareTypeNotEqual:
 		return comp.value != val
-	case FilterItemTypeContain:
+	case logger.CompareTypeContain:
 		v1, ok1 := val.(string)
 		v2, ok2 := comp.value.(string)
 		if !ok1 || !ok2 {
@@ -186,7 +175,7 @@ func (comp *FilterItem) IsEqual(val any) bool {
 		}
 
 		return strings.Contains(v1, v2)
-	case FilterItemTypeNotContain:
+	case logger.CompareTypeNotContain:
 		v1, ok1 := val.(string)
 		v2, ok2 := comp.value.(string)
 		if !ok1 || !ok2 {
@@ -194,14 +183,14 @@ func (comp *FilterItem) IsEqual(val any) bool {
 		}
 
 		return !strings.Contains(v1, v2)
-	case FilterItemTypeRegexp:
+	case logger.CompareTypeRegexp:
 		v1, ok1 := val.(string)
 		if !ok1 || comp.regexp == nil {
 			return false
 		}
 
 		return comp.regexp.MatchString(v1)
-	case FilterItemTypeGreatThan:
+	case logger.CompareTypeGreatThan:
 		switch t := val.(type) {
 		case int:
 			v, ok := comp.value.(int)
@@ -220,7 +209,7 @@ func (comp *FilterItem) IsEqual(val any) bool {
 		default:
 			return false
 		}
-	case FilterItemTypeLessThan:
+	case logger.CompareTypeLessThan:
 		switch t := val.(type) {
 		case int:
 			v, ok := comp.value.(int)
@@ -245,63 +234,33 @@ func (comp *FilterItem) IsEqual(val any) bool {
 }
 
 func (comp *FilterItem) getFilterItemMarker() fyne.CanvasObject {
-	var text string
+	var markerText string
 
-	switch comp.itemType {
-	case FilterItemTypeEqual:
-		text = "="
-	case FilterItemTypeNotEqual:
-		text = "!="
-	case FilterItemTypeContain:
-		text = "contain"
-	case FilterItemTypeNotContain:
-		text = "not contain"
-	case FilterItemTypeRegexp:
-		text = "regexp"
-	case FilterItemTypeGreatThan:
-		text = ">"
-	case FilterItemTypeLessThan:
-		text = "<"
+	switch comp.compareType {
+	case logger.CompareTypeEqual:
+		markerText = "="
+	case logger.CompareTypeNotEqual:
+		markerText = "!="
+	case logger.CompareTypeContain:
+		markerText = "contain"
+	case logger.CompareTypeNotContain:
+		markerText = "not contain"
+	case logger.CompareTypeRegexp:
+		markerText = "regexp"
+	case logger.CompareTypeGreatThan:
+		markerText = ">"
+	case logger.CompareTypeLessThan:
+		markerText = "<"
+	case logger.CompareTypeBoolean:
+		markerText = "boolean"
 	default:
+		markerText = "="
 	}
 
-	marker := canvas.NewText(text, color.RGBA{R: 114, G: 17, B: 17, A: 255})
+	marker := canvas.NewText(markerText, color.RGBA{R: 114, G: 17, B: 17, A: 255})
 	marker.TextStyle.Bold = true
 	marker.TextStyle.Italic = true
 	marker.TextSize = 18
 
 	return marker
-}
-
-func getFilterItemTypeText() []string {
-	return []string{
-		"equal",
-		"not equal",
-		"contain",
-		"not contain",
-		"regexp",
-		"greater than",
-		"less than",
-	}
-}
-
-func getFilterItemTypeByString(val string) FilterItemType {
-	switch val {
-	case "equal":
-		return FilterItemTypeEqual
-	case "not equal":
-		return FilterItemTypeNotEqual
-	case "contain":
-		return FilterItemTypeContain
-	case "not contain":
-		return FilterItemTypeNotContain
-	case "regexp":
-		return FilterItemTypeRegexp
-	case "greater than":
-		return FilterItemTypeGreatThan
-	case "less than":
-		return FilterItemTypeLessThan
-	default:
-		return FilterItemTypeEqual
-	}
 }

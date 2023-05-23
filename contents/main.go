@@ -6,7 +6,7 @@ import (
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/widget"
 	"github.com/FreeZmaR/view-logs/components"
-	"time"
+	"github.com/FreeZmaR/view-logs/core/logger"
 )
 
 type Main struct {
@@ -64,25 +64,18 @@ func (c *Main) makeContent() {
 }
 
 func (c *Main) makeLogs() fyne.CanvasObject {
+	ms1 := `{"level": "info", "message": "First log", "time": "2021-08-15T15:04:05Z", "operation_id": "some_id"}`
+	ms2 := `{"level": "warn", "message": "Second log", "time": "2021-08-15T15:05:05Z", "operation_id": "some_id"}`
+
+	lg1 := logger.NewJSONLog()
+	lg1.Parse([]byte(ms1))
+
+	lg2 := logger.NewJSONLog()
+	lg2.Parse([]byte(ms2))
+
 	return container.NewVBox(
-		components.NewLogItem(
-			"First log",
-			"info",
-			time.Now().Add(-5*time.Minute),
-			components.LogItemField{
-				Label: "operation_id",
-				Value: "some_id",
-			},
-		),
-		components.NewLogItem(
-			"Second log",
-			"info",
-			time.Now(),
-			components.LogItemField{
-				Label: "operation_id",
-				Value: "some_id",
-			},
-		),
+		components.NewLogItem(lg1),
+		components.NewLogItem(lg2),
 	)
 }
 

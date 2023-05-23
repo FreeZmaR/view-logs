@@ -7,16 +7,8 @@ import (
 	"fyne.io/fyne/v2/layout"
 	fyneTheme "fyne.io/fyne/v2/theme"
 	fyneWidget "fyne.io/fyne/v2/widget"
-	"strings"
+	"github.com/FreeZmaR/view-logs/core/logger"
 	"time"
-)
-
-const (
-	LogItemLevelUnknown LogItemLevel = 0
-	LogItemLevelInfo    LogItemLevel = 1
-	LogItemLevelError   LogItemLevel = 2
-	LogItemLevelWarning LogItemLevel = 3
-	LogItemLevelFatal   LogItemLevel = 4
 )
 
 type LogItemI interface {
@@ -26,23 +18,23 @@ type LogItemI interface {
 
 type LogItem struct {
 	fyneWidget.BaseWidget
-	msg            string
-	level          LogItemLevel
-	time           time.Time
-	fieldContainer *logItemFieldContainer
-	background     *canvas.Rectangle
+	msg        string
+	level      logger.Level
+	time       time.Time
+	background *canvas.Rectangle
+	log        logger.Log
 }
 
 type LogItemLevel int
 
 var _ LogItemI = (*LogItem)(nil)
 
-func NewLogItem(msg, level string, t time.Time, fields ...LogItemField) *LogItem {
+func NewLogItem(log logger.Log) *LogItem {
 	l := &LogItem{
-		msg:            msg,
-		level:          parseItemLogLevel(level),
-		time:           t,
-		fieldContainer: makeLogItemFieldContainer(fields),
+		log:   log,
+		level: log.GetLevel(),
+		msg:   log.GetMessage(),
+		time:  log.GetTime(),
 	}
 
 	l.ExtendBaseWidget(l)
@@ -98,19 +90,19 @@ func (comp *LogItem) getLevelWidget() fyne.CanvasObject {
 	)
 
 	switch comp.level {
-	case LogItemLevelInfo:
+	case logger.LevelInfo:
 		text = "[ Info ]"
 		color = fyneTheme.ColorBlue
-	case LogItemLevelError:
+	case logger.LevelError:
 		text = "[ Error ]"
 		color = fyneTheme.ColorRed
-	case LogItemLevelWarning:
+	case logger.LevelWarning:
 		text = "[ Warning ]"
 		color = fyneTheme.ColorOrange
-	case LogItemLevelFatal:
+	case logger.LevelFatal:
 		text = "[ Fatal ]"
 		color = fyneTheme.ColorPurple
-	case LogItemLevelUnknown:
+	case logger.LevelUnknown:
 		text = "[ Unknown ]"
 		color = fyneTheme.ColorGray
 	}
@@ -121,80 +113,4 @@ func (comp *LogItem) getLevelWidget() fyne.CanvasObject {
 	canvasText.TextStyle.Italic = true
 
 	return canvasText
-}
-
-func parseItemLogLevel(rawLevel string) LogItemLevel {
-	level := strings.ToLower(rawLevel)
-
-	switch level {
-	case "info":
-		return LogItemLevelInfo
-	case "error":
-		return LogItemLevelError
-	case "warning":
-		return LogItemLevelWarning
-	case "fatal":
-		return LogItemLevelFatal
-	default:
-		return LogItemLevelUnknown
-	}
-}
-
-type logItemFieldContainer struct {
-	fields []LogItemField
-}
-
-func makeLogItemFieldContainer(fields []LogItemField) *logItemFieldContainer {
-	f := &logItemFieldContainer{fields: make([]LogItemField, 0, len(fields))}
-	f.addUniqueFields(fields)
-
-	return f
-}
-
-func (container *logItemFieldContainer) addUniqueFields(fields []LogItemField) {
-	uniqueNewFields := make([]LogItemField, 0, len(fields))
-
-	for _, field := range fields {
-		isUnique := true
-
-		for _, existField := range container.fields {
-			if existField.Label == field.Label {
-				isUnique = false
-
-				break
-			}
-		}
-
-		if isUnique {
-			uniqueNewFields = append(uniqueNewFields, field)
-		}
-	}
-
-	container.fields = append(container.fields, uniqueNewFields...)
-}
-
-func (container *logItemFieldContainer) showByLabel(label string) {
-	container.changeIsShowByLabel(label, true)
-}
-
-func (container *logItemFieldContainer) hideByLabel(label string) {
-	container.changeIsShowByLabel(label, false)
-}
-
-func (container *logItemFieldContainer) changeIsShowByLabel(label string, isShow bool) {
-	for _, field := range container.fields {
-		if field.Label == label {
-			field.isShow = isShow
-		}
-	}
-}
-
-type LogItemField struct {
-	isShow bool
-	Label  string
-	Value  string
-}
-
-func NewLogItemField(label, value string) LogItemField {
-	return LogItemField{Label: label, Value: value, isShow: false}
 }
