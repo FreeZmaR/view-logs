@@ -1,11 +1,10 @@
 package connector
 
 import (
+	"errors"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/crypto/ssh/agent"
+	"io"
 	"log"
-	"net"
-	"os"
 	"strconv"
 	"time"
 )
@@ -24,8 +23,7 @@ type SSHConnect struct {
 }
 
 type SHHProxyConnect struct {
-	proxyConnect net.Conn
-	proxyClient  *ssh.Client
+	proxyConnect *ssh.Client
 	config       *SSHConfig
 }
 
@@ -86,32 +84,41 @@ func (connect *SSH) Connect() error {
 		return nil
 	}
 
-	agentConn, err := net.Dial("unix", os.Getenv("SSH_AUTH_SOCK"))
+	lastProxy := connect.proxy[len(connect.proxy)-1]
+
+	conn, err := lastProxy.proxyConnect.Dial("tcp", connect.config.Host+":"+strconv.Itoa(connect.config.Port))
 	if err != nil {
 		connect.realizeResources()
 
 		return err
 	}
 
-	agentClient := agent.NewClient(agentConn)
-	auths := []ssh.AuthMethod{ssh.PublicKeysCallback(agentClient.Signers)}
-
-	lastProxy := connect.proxy[len(connect.proxy)-1]
+	//agentClient := agent.NewClient(lastProxy.proxyConnect)
+	auths := []ssh.AuthMethod{
+		//ssh.PublicKeysCallback(agentClient.Signers),
+		ssh.Password(connect.config.Password),
+	}
 
 	con, chans, req, err := ssh.NewClientConn(
-		lastProxy.proxyConnect,
+		conn,
 		connect.config.Host,
 		&ssh.ClientConfig{
 			User:            connect.config.User,
 			Auth:            auths,
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+			Timeout:         30 * time.Second,
 		},
 	)
+	if err != nil {
+		connect.realizeResources()
+
+		return err
+	}
 
 	client := ssh.NewClient(con, chans, req)
 	connect.connect.connect = client
 
-	connect.connect.session, err = connect.connect.connect.NewSession()
+	connect.connect.session, err = client.NewSession()
 	if err != nil {
 		connect.realizeResources()
 
@@ -150,28 +157,25 @@ func (connect *SSH) makeProxy() error {
 
 	connect.proxy = make([]SHHProxyConnect, len(connect.proxyConfigs))
 	for i, proxyConfig := range connect.proxyConfigs {
-		proxyConnect, err := net.Dial("tcp", proxyConfig.Host)
-		if err != nil {
-			return err
-		}
-
 		auth := []ssh.AuthMethod{
 			ssh.Password(proxyConfig.Password),
 		}
 
-		proxySSHConn, proxyChans, proxyChanRequest, err := ssh.NewClientConn(
-			proxyConnect,
-			proxyConfig.Host,
+		proxyConnect, err := ssh.Dial(
+			"tcp",
+			connect.config.Host+":"+strconv.Itoa(connect.config.Port),
 			&ssh.ClientConfig{
-				User:            proxyConfig.User,
+				User:            connect.config.User,
 				Auth:            auth,
 				HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 			},
 		)
+		if err != nil {
+			return err
+		}
 
 		connect.proxy[i] = SHHProxyConnect{
 			proxyConnect: proxyConnect,
-			proxyClient:  ssh.NewClient(proxySSHConn, proxyChans, proxyChanRequest),
 			config:       proxyConfig,
 		}
 	}
@@ -181,12 +185,16 @@ func (connect *SSH) makeProxy() error {
 
 func (connect *SSH) realizeResources() {
 	if connect.connect != nil {
-		if err := connect.connect.session.Close(); err != nil {
-			log.Print("Error closing session: ", err)
+		if connect.connect.session != nil {
+			if err := connect.connect.session.Close(); err != nil && !errors.Is(err, io.EOF) {
+				log.Print("Error closing session: ", err)
+			}
 		}
 
-		if err := connect.connect.connect.Close(); err != nil {
-			log.Print("Error closing connect: ", err)
+		if connect.connect.connect != nil {
+			if err := connect.connect.connect.Close(); err != nil {
+				log.Print("Error closing connect: ", err)
+			}
 		}
 	}
 
@@ -194,12 +202,10 @@ func (connect *SSH) realizeResources() {
 		for i := len(connect.proxy) - 1; i >= 0; i-- {
 			proxy := connect.proxy[i]
 
-			if err := proxy.proxyClient.Close(); err != nil {
-				log.Print("Error closing proxy client: ", err)
-			}
-
-			if err := proxy.proxyConnect.Close(); err != nil {
-				log.Print("Error closing proxy connect: ", err)
+			if proxy.proxyConnect != nil {
+				if err := proxy.proxyConnect.Close(); err != nil {
+					log.Print("Error closing proxy client: ", err)
+				}
 			}
 		}
 	}
