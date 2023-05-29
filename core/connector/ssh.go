@@ -2,6 +2,7 @@ package connector
 
 import (
 	"errors"
+	"github.com/FreeZmaR/view-logs/core/reader"
 	"golang.org/x/crypto/ssh"
 	"io"
 	"log"
@@ -146,8 +147,37 @@ func (connect *SSH) Ping() (int, error) {
 	return int(time.Since(t).Seconds() * 1000), nil
 }
 
+func (connect *SSH) SetReader(r reader.Reader) error {
+	if nil == connect.connect.session {
+		return errors.New("ssh session not init")
+	}
+
+	sessionReader, err := connect.connect.session.StdoutPipe()
+	if err != nil {
+		log.Print("Error make reader by ssh session")
+
+		return err
+	}
+
+	reader.InitReader(r, sessionReader, connect.connect.session.Start, connect.interruptSession)
+
+	return nil
+}
+
 func (connect *SSH) Close() {
 	connect.realizeResources()
+}
+
+func (connect *SSH) interruptSession() error {
+	if connect.connect == nil {
+		return nil
+	}
+
+	if connect.connect.session == nil {
+		return nil
+	}
+
+	return connect.connect.session.Signal(ssh.SIGINT)
 }
 
 func (connect *SSH) makeProxy() error {
